@@ -254,10 +254,10 @@ if __name__ == '__main__':
     # Initialize the class
     processor = DataProcessor(input_steps=INPUT_WINDOW, output_steps=OUTPUT_WINDOW)
     
-    # 3. Run the pipeline
+    # Run the pipeline
     (X_train, y_train), (X_val, y_val), (X_test, y_test) = processor.load_and_process_data()
     
-    # 4. Check the final shapes
+    # Check the final shapes
     print("\n--- Final Data Shapes ---")
     print(f"X_train shape: {X_train.shape}  | y_train shape: {y_train.shape}")
     print(f"X_val shape:   {X_val.shape}     | y_val shape:   {y_val.shape}")
