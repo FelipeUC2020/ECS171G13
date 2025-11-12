@@ -15,8 +15,8 @@ class CNN(nn.Module):
 
     By default this class is configured for:
       - in_channels = 4 (sub_metering_1/2/3/rest)
-      - input_length = 168 (7 days * 24 hours)
-      - output_steps = 72 (3 days * 24 hours)
+      - input_length = 72 (3 days * 24 hours)
+      - output_steps = 24 (1 day * 24 hours)
     """
 
     def __init__(self,
