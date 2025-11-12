@@ -167,13 +167,15 @@ def cross_validate(model_cls: Callable[..., nn.Module],
                    optimizer_kwargs: Optional[dict] = None,
                    criterion: Callable = nn.MSELoss(),
                    shuffle: bool = False,
-                   verbose: bool = True) -> Tuple[List[dict], List[Optional[float]]]:
+                   verbose: bool = True) -> Tuple[List[dict], List[Optional[float]], Optional[nn.Module]]:
     """Run cross-validation over folds. Each fold is ((X_tr,y_tr),(X_val,y_val)).
 
-    Returns (histories, val_losses)
+    Returns (histories, val_losses, best_model) where best_model is the model with lowest final val_loss.
     """
     histories = []
     val_losses = []
+    best_model = None
+    best_loss = float('inf')
 
     for i, ((X_tr, y_tr), (X_val, y_val)) in enumerate(folds, start=1):
         if verbose:
@@ -187,10 +189,14 @@ def cross_validate(model_cls: Callable[..., nn.Module],
 
         histories.append(hist)
         if 'val_loss' in hist and len(hist['val_loss']) > 0:
-            val_losses.append(hist['val_loss'][-1])
+            final_val_loss = hist['val_loss'][-1]
+            val_losses.append(final_val_loss)
+            if final_val_loss < best_loss:
+                best_loss = final_val_loss
+                best_model = model
         else:
             val_losses.append(None)
 
-    return histories, val_losses
+    return histories, val_losses, best_model
 
     
