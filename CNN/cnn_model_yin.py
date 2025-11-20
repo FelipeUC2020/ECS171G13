@@ -5,6 +5,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from typing import Optional, Callable, List, Tuple
+import os
+from torch.utils.data import TensorDataset, DataLoader
 
 
 class CNN(nn.Module):
@@ -84,7 +86,10 @@ def train(model: nn.Module,
           optimizer_kwargs: Optional[dict] = None,
           criterion: Callable = nn.MSELoss(),
           shuffle: bool = False,
-          verbose: bool = True) -> dict:
+          verbose: bool = True,
+          checkpoint_dir: Optional[str] = None,
+          checkpoint_prefix: str = "model",
+          save_best_only: bool = True) -> dict:
     """Train helper accepting numpy arrays (n, time, channels) and multi-step targets (n, out_steps).
 
     Returns history dict with train_loss and optionally val_loss.
@@ -106,12 +111,20 @@ def train(model: nn.Module,
     if y_val is not None and not isinstance(y_val, torch.Tensor):
         y_val = torch.tensor(y_val, dtype=torch.float32)
 
-    train_ds = torch.utils.data.TensorDataset(X_train, y_train)
-    train_loader = torch.utils.data.DataLoader(train_ds, batch_size=batch_size, shuffle=shuffle)
+    train_ds = TensorDataset(X_train, y_train)
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=shuffle)
 
-    history = {'train_loss': []}
+    # history dict: lists for loss tracking; scalar metadata kept separately
+    history: dict = {'train_loss': []}
     if X_val is not None and y_val is not None:
         history['val_loss'] = []
+    # store metadata under distinct keys as scalars
+    history['best_val_loss'] = float('inf')
+    history['checkpoint_path'] = ""
+
+    best_val = float('inf')
+    if checkpoint_dir:
+        os.makedirs(checkpoint_dir, exist_ok=True)
 
     for epoch in range(1, epochs + 1):
         model.train()
@@ -150,6 +163,38 @@ def train(model: nn.Module,
             history['val_loss'].append(val_loss)
             if verbose:
                 print(f"Epoch {epoch}/{epochs} - train_loss: {avg_train_loss:.6f} - val_loss: {val_loss:.6f}")
+            # checkpoint saving logic
+            if checkpoint_dir:
+                improved = val_loss < best_val
+                if improved:
+                    best_val = val_loss
+                    history['best_val_loss'] = best_val
+                    if save_best_only:
+                        ckpt_name = f"{checkpoint_prefix}_best.pt"
+                    else:
+                        ckpt_name = f"{checkpoint_prefix}_epoch{epoch}.pt"
+                    ckpt_path = os.path.join(checkpoint_dir, ckpt_name)
+                    torch.save({
+                        'epoch': epoch,
+                        'model_state_dict': model.state_dict(),
+                        'optimizer_state_dict': optimizer.state_dict(),
+                        'train_loss': avg_train_loss,
+                        'val_loss': val_loss,
+                        'best_val_loss': best_val
+                    }, ckpt_path)
+                    history['checkpoint_path'] = ckpt_path
+                elif (checkpoint_dir and not save_best_only):
+                    ckpt_name = f"{checkpoint_prefix}_epoch{epoch}.pt"
+                    ckpt_path = os.path.join(checkpoint_dir, ckpt_name)
+                    torch.save({
+                        'epoch': epoch,
+                        'model_state_dict': model.state_dict(),
+                        'optimizer_state_dict': optimizer.state_dict(),
+                        'train_loss': avg_train_loss,
+                        'val_loss': val_loss,
+                        'best_val_loss': best_val if best_val != float('inf') else None
+                    }, ckpt_path)
+                    history['checkpoint_path'] = ckpt_path
         else:
             if verbose:
                 print(f"Epoch {epoch}/{epochs} - train_loss: {avg_train_loss:.6f}")
@@ -167,7 +212,9 @@ def cross_validate(model_cls: Callable[..., nn.Module],
                    optimizer_kwargs: Optional[dict] = None,
                    criterion: Callable = nn.MSELoss(),
                    shuffle: bool = False,
-                   verbose: bool = True) -> Tuple[List[dict], List[Optional[float]], Optional[nn.Module]]:
+                   verbose: bool = True,
+                   checkpoint_dir: Optional[str] = None,
+                   save_best_only: bool = True) -> Tuple[List[dict], List[Optional[float]], Optional[nn.Module]]:
     """Run cross-validation over folds. Each fold is ((X_tr,y_tr),(X_val,y_val)).
 
     Returns (histories, val_losses, best_model) where best_model is the model with lowest final val_loss.
@@ -182,10 +229,15 @@ def cross_validate(model_cls: Callable[..., nn.Module],
             print(f"Starting fold {i}/{len(folds)}: train {X_tr.shape} | val {X_val.shape}")
 
         model = model_cls()
+        fold_ckpt_dir = None
+        if checkpoint_dir:
+            os.makedirs(checkpoint_dir, exist_ok=True)
+            fold_ckpt_dir = os.path.join(checkpoint_dir, f"fold_{i}")
         hist = train(model, X_tr, y_tr, X_val=X_val, y_val=y_val,
                      device=device, epochs=epochs, batch_size=batch_size, lr=lr,
                      optimizer_cls=optimizer_cls, optimizer_kwargs=optimizer_kwargs,
-                     criterion=criterion, shuffle=shuffle, verbose=verbose)
+                     criterion=criterion, shuffle=shuffle, verbose=verbose,
+                     checkpoint_dir=fold_ckpt_dir, checkpoint_prefix=f"fold{i}", save_best_only=save_best_only)
 
         histories.append(hist)
         if 'val_loss' in hist and len(hist['val_loss']) > 0:
