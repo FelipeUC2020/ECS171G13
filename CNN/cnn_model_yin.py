@@ -214,14 +214,14 @@ def cross_validate(model_cls: Callable[..., nn.Module],
                    shuffle: bool = False,
                    verbose: bool = True,
                    checkpoint_dir: Optional[str] = None,
-                   save_best_only: bool = True) -> Tuple[List[dict], List[Optional[float]], Optional[nn.Module]]:
+                   save_best_only: bool = True) -> Tuple[List[dict], List[Optional[float]], Optional[str]]:
     """Run cross-validation over folds. Each fold is ((X_tr,y_tr),(X_val,y_val)).
 
-    Returns (histories, val_losses, best_model) where best_model is the model with lowest final val_loss.
+    Returns (histories, val_losses, best_checkpoint_path) where best_checkpoint_path is the path to the model with lowest final val_loss.
     """
     histories = []
     val_losses = []
-    best_model = None
+    best_checkpoint_path = None
     best_loss = float('inf')
 
     for i, ((X_tr, y_tr), (X_val, y_val)) in enumerate(folds, start=1):
@@ -245,10 +245,10 @@ def cross_validate(model_cls: Callable[..., nn.Module],
             val_losses.append(final_val_loss)
             if final_val_loss < best_loss:
                 best_loss = final_val_loss
-                best_model = model
+                best_checkpoint_path = hist.get('checkpoint_path')
         else:
             val_losses.append(None)
 
-    return histories, val_losses, best_model
+    return histories, val_losses, best_checkpoint_path
 
     
