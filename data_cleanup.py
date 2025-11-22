@@ -17,7 +17,7 @@ class DataProcessor:
     7. Windowing (for supervised learning)
     """
     
-    def __init__(self, input_steps, output_steps, target_column_name='Global_active_power'):
+    def __init__(self, input_steps, output_steps, target_column_name='Global_active_power', time_sampling='T', get_all_label_features=False):
         """
         Initializes the processor with windowing and target parameters.
         
@@ -30,7 +30,10 @@ class DataProcessor:
         self.output_steps = output_steps
         self.target_column_name = target_column_name
         # Will be set after resampling
-        self.target_column_index = 0  
+        self.target_column_index = 0 
+        self.get_all_label_features = get_all_label_features
+
+        self.time_sampling = time_sampling # scale at which the windows are created, 'T' for minute-wise, 'H' for hourly
         
         # Initialize the scaler
         self.scaler = MinMaxScaler(feature_range=(0, 1))
@@ -114,24 +117,25 @@ class DataProcessor:
             'Sub_metering_rest': 'sum'
         }
         
-        df_hourly = df.resample('H').agg(agg_dict)
-        df_hourly = df_hourly.fillna(method='ffill')
+        #
+        df_timesampled = df.resample(self.time_sampling).agg(agg_dict) # 'T' for minute-wise, 'H' for hourly
+        df_timesampled = df_timesampled.fillna(method='ffill')
         
         # Find the index of the target column
         # We do this to make windowing and inverse_transform easier b/c target column can always be 0
         try:
-            self.target_column_index = df_hourly.columns.get_loc(self.target_column_name)
+            self.target_column_index = df_timesampled.columns.get_loc(self.target_column_name)
         except KeyError:
             print(f"Error: Target column '{self.target_column_name}' not found in data.")
             return None
         
         # Create a new column order with the target column first
-        cols = [self.target_column_name] + [col for col in df_hourly.columns if col != self.target_column_name]
-        df_hourly = df_hourly[cols]
+        cols = [self.target_column_name] + [col for col in df_timesampled.columns if col != self.target_column_name]
+        df_timesampled = df_timesampled[cols]
         # Now, the target_column_index is always 0
         self.target_column_index = 0 
         
-        return df_hourly
+        return df_timesampled
 
     def _split_and_scale(self, df):
         """
@@ -173,6 +177,10 @@ class DataProcessor:
         # We stop when there's not enough data left to create a full output window
         for i in range(len(data) - input_steps - output_steps + 1):
             
+            progress = (i+1) / (len(data) - input_steps - output_steps + 1) * 100
+            if progress % 10 == 0:
+                print(f"Processed {progress:.0f}% of data...")
+            
             # Get the next 'input_steps' rows (e.g., 24 hours)
             # This will include ALL features
             input_window = data[i : (i + input_steps)]
@@ -181,7 +189,10 @@ class DataProcessor:
             # Get the 'output_steps' (e.g., 1 hour) that COME AFTER the input window
             # This will ONLY include the target feature (e.g., Global_active_power if we set target_column_index to 0)
             # We only want to look at one column in the target step to reduce complexity/time
-            output_window = data[(i + input_steps) : (i + input_steps + output_steps), target_column_index]
+            if self.get_all_label_features: 
+                output_window = data[(i + input_steps) : (i + input_steps + output_steps), :]
+            else:
+                output_window = data[(i + input_steps) : (i + input_steps + output_steps), self.target_column_index]
             y.append(output_window)
             
         return np.array(X), np.array(y)
@@ -196,9 +207,9 @@ class DataProcessor:
         """
         df_clean = self._fetch_clean_and_engineer()
         
-        df_hourly = self._resample_and_reorder(df_clean)
+        df_timesampled = self._resample_and_reorder(df_clean)
         
-        scaled_train, scaled_val, scaled_test = self._split_and_scale(df_hourly)
+        scaled_train, scaled_val, scaled_test = self._split_and_scale(df_timesampled)
         
         print("Step 4/5: Creating time-series windows...")
         self.X_train, self.y_train = self._create_windows(scaled_train)
@@ -252,7 +263,7 @@ if __name__ == '__main__':
     OUTPUT_WINDOW = 24 
     
     # Initialize the class
-    processor = DataProcessor(input_steps=INPUT_WINDOW, output_steps=OUTPUT_WINDOW)
+    processor = DataProcessor(input_steps=INPUT_WINDOW, output_steps=OUTPUT_WINDOW, time_sampling='H')
     
     # 3. Run the pipeline
     (X_train, y_train), (X_val, y_val), (X_test, y_test) = processor.load_and_process_data()
@@ -264,8 +275,9 @@ if __name__ == '__main__':
     print(f"X_test shape:  {X_test.shape}    | y_test shape:  {y_test.shape}")
     
     # Example: y_train shape might be (25153, 24)
-    # This means 25,153 samples, and for each sample, we predict 24 steps (hours) ahead.
+    # This means 25,153 samples, and for each sample, we predict 24 steps ahead.
+    # (hours if timesampling is 'H', minutes if timesampling is 'T') 
     
     # Example: X_train shape might be (25153, 48, 8)
-    # This means 25,153 samples, each with 48 time steps (hours) and 8 features.
+    # This means 25,153 samples, each with 48 time steps and 8 features.
 '''
