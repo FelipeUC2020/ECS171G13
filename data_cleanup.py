@@ -2,6 +2,9 @@ from ucimlrepo import fetch_ucirepo
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
+import os
+import zipfile
+from typing import Optional
 
 class DataProcessor:
     """
@@ -17,7 +20,9 @@ class DataProcessor:
     7. Windowing (for supervised learning)
     """
     
-    def __init__(self, input_steps, output_steps, target_column_name='Global_active_power'):
+    def __init__(self, input_steps, output_steps, target_column_name='Global_active_power',
+                 local_raw_path: Optional[str] = None,
+                 local_raw_df: Optional[pd.DataFrame] = None):
         """
         Initializes the processor with windowing and target parameters.
         
@@ -30,11 +35,15 @@ class DataProcessor:
         self.output_steps = output_steps
         self.target_column_name = target_column_name
         # Will be set after resampling
-        self.target_column_index = 0  
-        
+        self.target_column_index = 0
+
+        # local raw data options (prefer provided DataFrame, then path)
+        self.local_raw_path = local_raw_path
+        self.local_raw_df = local_raw_df
+
         # Initialize the scaler
         self.scaler = MinMaxScaler(feature_range=(0, 1))
-        
+
         # Placeholders for the final, windowed data
         self.X_train, self.y_train = None, None
         self.X_val, self.y_val = None, None
@@ -47,24 +56,70 @@ class DataProcessor:
         """
         print("Step 1/5: Fetching, cleaning, and engineering features...")
         
-        # fetch dataset 
-        individual_household_electric_power_consumption = fetch_ucirepo(id=235) 
-          
-        # data (as pandas dataframes) 
-        X = individual_household_electric_power_consumption.data.features 
+        # First, try using a provided local DataFrame
+        df = None
+        if getattr(self, 'local_raw_df', None) is not None:
+            df = self.local_raw_df.copy()
+
+        # Next, try to load from a local path if provided
+        if df is None and getattr(self, 'local_raw_path', None):
+            lp = self.local_raw_path
+            if os.path.exists(lp):
+                try:
+                    # If it's a zip file, try to locate a .txt inside and read it (semicolon-separated)
+                    if lp.lower().endswith('.zip'):
+                        with zipfile.ZipFile(lp, 'r') as z:
+                            # pick the first .txt or .csv file inside
+                            candidates = [n for n in z.namelist() if n.lower().endswith(('.txt', '.csv'))]
+                            if not candidates:
+                                raise RuntimeError(f'No .txt/.csv files found inside zip: {lp}')
+                            member = candidates[0]
+                            with z.open(member) as fh:
+                                df = pd.read_csv(fh, sep=';', header=0, decimal='.', na_values='?', low_memory=False)
+                    else:
+                        ext = os.path.splitext(lp)[1].lower()
+                        if ext in ('.parquet', '.parq'):
+                            df = pd.read_parquet(lp)
+                        elif ext in ('.pkl', '.pickle'):
+                            df = pd.read_pickle(lp)
+                        else:
+                            # assume csv-like
+                            df = pd.read_csv(lp, sep=';', header=0, decimal='.', na_values='?', low_memory=False)
+                except Exception as e:
+                    print(f'Failed to read local_raw_path "{lp}": {e}. Falling back to remote fetch.')
+                    df = None
+            else:
+                print(f'local_raw_path does not exist: {lp}. Falling back to remote fetch.')
+
+        # Finally, fallback to remote fetch
+        if df is None:
+            try:
+                individual_household_electric_power_consumption = fetch_ucirepo(id=235)
+                X = individual_household_electric_power_consumption.data.features
+                df = X.copy()
+            except Exception as e:
+                raise RuntimeError(
+                    'Failed to fetch remote dataset via ucimlrepo.fetch_ucirepo. '\
+                    'If you are offline or the remote service is unavailable, supply a local file path '\
+                    'to the original dataset zip/txt via DataProcessor(local_raw_path=...) or an already-loaded DataFrame via local_raw_df. '\
+                    f'Original error: {e}'
+                )
         
-        # Create one main DataFrame to work with
-        df = X.copy()
-        
-        # Combine Date and Time into a single string
-        # The format should be '%d/%m/%Y %H:%M:%S' 
-        df['datetime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'], format='%d/%m/%Y %H:%M:%S')
-        
-        # Set this new column as the index
-        df = df.set_index('datetime')
-        
-        # Drop the old columns
-        df = df.drop(['Date', 'Time'], axis=1)
+        # Combine Date and Time into a single datetime index if needed
+        if 'Date' in df.columns and 'Time' in df.columns:
+            df['datetime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'], format='%d/%m/%Y %H:%M:%S', errors='coerce')
+            df = df.set_index('datetime')
+            df = df.drop(['Date', 'Time'], axis=1)
+        elif 'datetime' in df.columns:
+            df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce')
+            df = df.set_index('datetime')
+        else:
+            # try to convert index to datetime if it's not already
+            if not isinstance(df.index, pd.DatetimeIndex):
+                try:
+                    df.index = pd.to_datetime(df.index)
+                except Exception:
+                    print('Warning: could not parse Date/Time into a datetime index. Proceeding with existing index.')
         
         # Replace '?' with a real NaN (Not a Number) value 
         # (b/c this dataset uses a '?' instead of NaN)
