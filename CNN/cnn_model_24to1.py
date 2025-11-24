@@ -10,26 +10,25 @@ from torch.utils.data import TensorDataset, DataLoader
 
 
 class CNN(nn.Module):
-    """CNN for multistep forecasting from multichannel time-series.
+    """CNN for single-step forecasting from multichannel time-series.
 
     Input shape expected for training data: (batch, time, channels).
     This model internally expects (batch, channels, time) for Conv1d.
 
     By default this class is configured for:
       - in_channels = 4 (sub_metering_1/2/3/rest)
-      - input_length = 72 (3 days * 24 hours)
-      - output_steps = 24 (1 day * 24 hours)
+      - input_length = 24 (1 day = 24 hours)
+      - output_steps = 1 (predict next 1 hour)
     """
 
     def __init__(self,
                  in_channels: int = 4,
-                 input_length: int = 24 * 3,
-                 output_steps: int = 24,
+                 input_length: int = 24,
+                 output_steps: int = 1,
                  conv_channels: List[int] = [32, 64, 128],
                  kernel_size: int = 3,
                  pool_kernel: int = 2,
-                 fc_hidden: int = 256,
-                 padding: bool = True):
+                 fc_hidden: int = 256):
         super().__init__()
         self.in_channels = in_channels
         self.input_length = input_length
@@ -39,10 +38,9 @@ class CNN(nn.Module):
         convs = []
         prev_ch = in_channels
         for ch in conv_channels:
-            convs.append(nn.Conv1d(prev_ch, ch, kernel_size=kernel_size, padding=kernel_size//2 if padding else 0))
+            convs.append(nn.Conv1d(prev_ch, ch, kernel_size=kernel_size, padding=kernel_size//2))
             convs.append(nn.ReLU())
-            if pool_kernel > 1:
-                convs.append(nn.MaxPool1d(kernel_size=pool_kernel))
+            convs.append(nn.MaxPool1d(kernel_size=pool_kernel))
             prev_ch = ch
         self.feature_extractor = nn.Sequential(*convs)
 
@@ -74,6 +72,7 @@ class CNN(nn.Module):
         out = self.fc2(h)
         return out
 
+
 def train(model: nn.Module,
           X_train,
           y_train,
@@ -91,7 +90,7 @@ def train(model: nn.Module,
           checkpoint_dir: Optional[str] = None,
           checkpoint_prefix: str = "model",
           save_best_only: bool = True) -> dict:
-    """Train helper accepting numpy arrays (n, time, channels) and multi-step targets (n, out_steps).
+    """Train helper accepting numpy arrays (n, time, channels) and single-step targets (n, 1).
 
     Returns history dict with train_loss and optionally val_loss.
     """
@@ -251,5 +250,3 @@ def cross_validate(model_cls: Callable[..., nn.Module],
             val_losses.append(None)
 
     return histories, val_losses, best_checkpoint_path
-
-    
