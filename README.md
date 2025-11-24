@@ -66,3 +66,18 @@ To test the endpoint:
 ```bash
 http://127.0.0.1:8000/run
 ```
+
+#### Frontend
+(requires Node.js 20+), for node installation lookup: `https://nodejs.org/en/download`
+
+To run the frontend:
+```bash
+cd front
+npm install
+npm run dev
+```
+
+The frontend will be available at `http://localhost:3000/`
+
+Note: to consume both the frontend and backend, run them in separate terminals!
+
