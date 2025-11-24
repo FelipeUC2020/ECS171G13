@@ -6,7 +6,7 @@ scikit-image
 torch==2.2.0
 torchvision==0.17.0
 ucimlrepo
+seaborn
 openai>=1.0.0
 python-dotenv>=1.0.0
 fastapi[standard]
-
