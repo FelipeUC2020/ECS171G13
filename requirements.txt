@@ -8,3 +8,5 @@ torchvision==0.17.0
 ucimlrepo
 openai>=1.0.0
 python-dotenv>=1.0.0
+fastapi[standard]
+
