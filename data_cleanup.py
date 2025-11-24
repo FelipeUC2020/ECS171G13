@@ -22,7 +22,8 @@ class DataProcessor:
     
     def __init__(self, input_steps, output_steps, target_column_name='Global_active_power',
                  local_raw_path: Optional[str] = None,
-                 local_raw_df: Optional[pd.DataFrame] = None):
+                 local_raw_df: Optional[pd.DataFrame] = None,
+                 get_all_label_features: bool = False):
         """
         Initializes the processor with windowing and target parameters.
         
@@ -30,12 +31,14 @@ class DataProcessor:
             input_steps (int): The number of past time steps to use as input (X).
             output_steps (int): The number of future time steps to predict (y).
             target_column_name (str): The name of the target variable to predict.
+            get_all_label_features (bool): Whether to include all 8 label features in the output.
         """
         self.input_steps = input_steps
         self.output_steps = output_steps
         self.target_column_name = target_column_name
         # Will be set after resampling
         self.target_column_index = 0
+        self.get_all_label_features = get_all_label_features
 
         # local raw data options (prefer provided DataFrame, then path)
         self.local_raw_path = local_raw_path
@@ -236,7 +239,10 @@ class DataProcessor:
             # Get the 'output_steps' (e.g., 1 hour) that COME AFTER the input window
             # This will ONLY include the target feature (e.g., Global_active_power if we set target_column_index to 0)
             # We only want to look at one column in the target step to reduce complexity/time
-            output_window = data[(i + input_steps) : (i + input_steps + output_steps), target_column_index]
+            if self.get_all_label_features: 
+                output_window = data[(i + input_steps) : (i + input_steps + output_steps), :]
+            else:
+                output_window = data[(i + input_steps) : (i + input_steps + output_steps), self.target_column_index]
             y.append(output_window)
             
         return np.array(X), np.array(y)

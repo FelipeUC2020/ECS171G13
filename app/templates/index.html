@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CNN Energy Forecasting Demo</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <h1>CNN Multi-Step Energy Forecasting</h1>
+    <p>Input 72 hours of sub-metering data (4 channels) to get a 24-hour forecast.</p>
+    <form id="forecast-form">
+        <label for="model-select">Select Model:</label>
+        <select id="model-select">
+            <!-- Additional models will be loaded dynamically -->
+        </select><br><br>
+        <label for="input-data">Input Data (JSON array of 72x4 floats):</label><br>
+        <textarea id="input-data" rows="10" cols="50" placeholder='[[ch1_h1, ch2_h1, ch3_h1, ch4_h1], [ch1_h2, ...], ...]'></textarea><br><br>
+        <button type="submit">Predict</button>
+    </form>
+    <!-- TODO: Add chart for predictions using Chart.js -->
+    <div id="result"></div>
+    <script src="/static/script.js"></script>
+</body>
+</html>

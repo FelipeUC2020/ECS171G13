@@ -28,8 +28,7 @@ class CNN(nn.Module):
                  conv_channels: List[int] = [32, 64, 128],
                  kernel_size: int = 3,
                  pool_kernel: int = 2,
-                 fc_hidden: int = 256,
-                 padding: bool = True):
+                 fc_hidden: int = 256):
         super().__init__()
         self.in_channels = in_channels
         self.input_length = input_length
@@ -39,10 +38,9 @@ class CNN(nn.Module):
         convs = []
         prev_ch = in_channels
         for ch in conv_channels:
-            convs.append(nn.Conv1d(prev_ch, ch, kernel_size=kernel_size, padding=kernel_size//2 if padding else 0))
+            convs.append(nn.Conv1d(prev_ch, ch, kernel_size=kernel_size, padding=kernel_size//2))
             convs.append(nn.ReLU())
-            if pool_kernel > 1:
-                convs.append(nn.MaxPool1d(kernel_size=pool_kernel))
+            convs.append(nn.MaxPool1d(kernel_size=pool_kernel))
             prev_ch = ch
         self.feature_extractor = nn.Sequential(*convs)
 
@@ -73,6 +71,7 @@ class CNN(nn.Module):
         h = F.relu(self.fc1(features))
         out = self.fc2(h)
         return out
+
 
 def train(model: nn.Module,
           X_train,
