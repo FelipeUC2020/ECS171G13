@@ -1,10 +1,23 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from data_cleanup import DataProcessor
 from model_loader import ModelLoader
 from llm_recommendations import get_recommendations
 import random
 
 app = FastAPI()
+
+# CORS for frontend at localhost:3000
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Globals 
 X_TEST_CH = None
