@@ -1,0 +1,16 @@
+{
+  "cv": {
+    "MSE": 0.0054307053796947,
+    "MAE": 0.05096004158258438,
+    "MAPE": 0.8519487977027893,
+    "SMAPE": 0.4688175916671753
+  },
+  "plain": {
+    "MSE": 0.005566313397139311,
+    "MAE": 0.05317307636141777,
+    "MAPE": 0.8549864888191223,
+    "SMAPE": 0.46925419569015503
+  },
+  "cv_checkpoint": "checkpoint/final_cv_24to1\\fold_5\\fold5_best.pt",
+  "plain_checkpoint": "checkpoint/run1_24to1/final_best.pt"
+}
