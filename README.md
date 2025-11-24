@@ -46,3 +46,23 @@ After activating the virtual environment, run the following commands:
 ```
 
 This will allow you to select the virtual environment as a kernel in Jupyter Notebook.
+
+### API
+
+Grant execute permissions to the script:
+
+```bash
+chmod +x run_api.bash
+```
+
+To run the API server:
+```bash
+./run_api.bash
+```
+
+The API will be available at `http://127.0.0.1:8000/`
+
+To test the endpoint:
+```bash
+http://127.0.0.1:8000/run
+```
