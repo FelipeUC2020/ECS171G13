@@ -1,6 +1,7 @@
 import torch
 import CNN.cnn_model_yin as CNN
 import numpy as np
+from tensorflow.keras.models import load_model as load_lstm_model
 
 class ModelLoader:
     def __init__(self, type: str = "CNN"):
@@ -11,8 +12,8 @@ class ModelLoader:
 
     def load_model(self):
         if self.type == "CNN":
-            checkpoint_path = "CNN/checkpoint/cv_demo/fold_5/fold5_best.pt"
-            self.model = CNN.CNN()
+            checkpoint_path = "CNN/checkpoint/cv_24to24/fold_5/fold5_best.pt"
+            self.model = CNN.CNN(8, 24, 24, kernel_size=3, pool_kernel=0, padding=False)
             if checkpoint_path:
                 ckpt = torch.load(checkpoint_path)
                 if isinstance(ckpt, dict) and 'model_state_dict' in ckpt:
@@ -21,11 +22,11 @@ class ModelLoader:
                     self.model.load_state_dict(ckpt)
             self.model.eval()
 
-        # TODO: Add LSTM model loading
         elif self.type == "LSTM":
-            raise NotImplementedError("LSTM model not implemented yet")
+            model_path = "RNN/checkpoints/lstm_v2.keras"
+            self.model = load_lstm_model(model_path)
             
-
+            
     def get_predictions(self, data):
         # should return a simple array with the global active pwer consumption for each hour 
         if self.type == "CNN":
@@ -41,12 +42,12 @@ class ModelLoader:
             with torch.no_grad():
                 return self.model(x)
 
-            # out_np = out.detach().numpy()
-            # if out_np.shape[0] == 1:
-            #     return out_np[0]
-            # return out_np
-        
-        # TODO: Add LSTM model prediction
         elif self.type == "LSTM": 
-            raise NotImplementedError("LSTM model not implemented yet")
-
+            # Ensure numpy float32 array and add batch dimension if a single sample is provided
+            if isinstance(data, np.ndarray):
+                x = data.astype(np.float32, copy=False)
+            else:
+                x = np.array(data, dtype=np.float32)
+            if x.ndim == 2:
+                x = np.expand_dims(x, axis=0)
+            return self.model.predict(x)

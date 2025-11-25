@@ -6,6 +6,7 @@ import Chart from './chart';
 
 export default function Home() {
   const [chartData, setChartData] = useState([]);
+  const [inputData, setInputData] = useState([]);
   const [model, setModel] = useState('CNN');
   const [isLoading, setIsLoading] = useState(true);
 
@@ -15,10 +16,32 @@ export default function Home() {
     if (!response.ok) throw new Error('Prediction API failed');
     const result = await response.json();
     console.log("Received data:", result);
-    console.log("Predictions:", result.predictions);
-    console.log("LLM Recommendations:", result.llm_recommendations);
-    const predictions = result.predictions[0].map((val, idx) => ({ index: idx + 1, value: val })); // or whatever shape you need
-    setChartData(predictions);
+
+    const cnn = result.cnn_predictions[0];
+    const lstm = result.lstm_predictions[0];
+    const label = result.label;
+
+    const len = Math.max(cnn.length, lstm.length, label.length);
+    const combined_chart = Array.from({ length: len }, (_, i) => ({
+      index: i + 1,
+      CNN: cnn[i] ?? null,
+      LSTM: lstm[i] ?? null,
+      Real: label[i] ?? null,
+    }));
+
+    const combined_input = Array.from({ length: result.input.length }, (_, i) => ({
+      index: i + 1,
+      GlobalActivePower: result.input[i][0] ?? null,
+      GlobalReactivePower: result.input[i][1] ?? null,
+      Voltage: result.input[i][2] ?? null,
+      GlobalIntensity: result.input[i][3] ?? null,
+      SubMeter1: result.input[i][4] ?? null,
+      SubMeter2: result.input[i][5] ?? null,
+      SubMeter3: result.input[i][6] ?? null,
+    }));
+
+    setChartData(combined_chart);
+    setInputData(combined_input);
     setIsLoading(false);
   }
 
@@ -35,7 +58,7 @@ export default function Home() {
       <div className="w-full max-w-3xl p-6 bg-white border border-slate-200 rounded-xl shadow-lg">
         <div className="flex flex-row items-center justify-between">
           <h1 className="text-2xl font-bold tracking-wide mb-4">
-            24 Hour Global Active Power Prediction ({model})
+            24 Hour Global Active Power Prediction
           </h1>
 
           <button 
@@ -57,6 +80,22 @@ export default function Home() {
           ) : chartData && (
             <ResponsiveContainer width="100%" height="100%">
               <Chart data={chartData} />
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        <h1 className="text-2xl font-bold tracking-wide my-4">
+          Input Data
+        </h1>
+
+        <div className="w-full h-96 p-3 bg-white rounded-lg border border-slate-200">
+          { isLoading ? (
+            <div className="flex items-center justify-center h-full">
+              <p className="text-slate-500 animate-pulse">Loading prediction...</p>
+            </div>
+          ) : inputData && (
+            <ResponsiveContainer width="100%" height="100%">
+              <Chart data={inputData} />
             </ResponsiveContainer>
           )}
         </div>
