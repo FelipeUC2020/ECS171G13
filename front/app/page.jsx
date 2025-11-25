@@ -9,6 +9,7 @@ export default function Home() {
   const [inputData, setInputData] = useState([]);
   const [model, setModel] = useState('CNN');
   const [isLoading, setIsLoading] = useState(true);
+  const [filterChannels, setFilterChannels] = useState(true);
 
   const runPrediction = async (inputData) => {
     setIsLoading(true);
@@ -24,20 +25,22 @@ export default function Home() {
     const len = Math.max(cnn.length, lstm.length, label.length);
     const combined_chart = Array.from({ length: len }, (_, i) => ({
       index: i + 1,
+      Real: label[i] ?? null,
       CNN: cnn[i] ?? null,
       LSTM: lstm[i] ?? null,
-      Real: label[i] ?? null,
     }));
 
     const combined_input = Array.from({ length: result.input.length }, (_, i) => ({
       index: i + 1,
       GlobalActivePower: result.input[i][0] ?? null,
-      GlobalReactivePower: result.input[i][1] ?? null,
-      Voltage: result.input[i][2] ?? null,
-      GlobalIntensity: result.input[i][3] ?? null,
-      SubMeter1: result.input[i][4] ?? null,
-      SubMeter2: result.input[i][5] ?? null,
-      SubMeter3: result.input[i][6] ?? null,
+      ...(!filterChannels && {
+        GlobalReactivePower: result.input[i][1] ?? null,
+        Voltage: result.input[i][2] ?? null,
+        GlobalIntensity: result.input[i][3] ?? null,
+        SubMeter1: result.input[i][4] ?? null,
+        SubMeter2: result.input[i][5] ?? null,
+        SubMeter3: result.input[i][6] ?? null,
+      }),
     }));
 
     setChartData(combined_chart);
@@ -84,9 +87,22 @@ export default function Home() {
           )}
         </div>
 
-        <h1 className="text-2xl font-bold tracking-wide my-4">
-          Input Data
-        </h1>
+        <div className='flex flex-row items-center justify-between'>
+          <h1 className="text-2xl font-bold tracking-wide my-4">
+            Input Data
+          </h1>
+
+          <button
+            className="ml-auto px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors cursor-pointer disabled:opacity-50"
+            onClick={async () => {
+              setFilterChannels(!filterChannels);
+              await runPrediction();
+            }}
+            disabled={isLoading}
+          >
+            {filterChannels ? 'Hide': 'Show All'}
+          </button>
+        </div>
 
         <div className="w-full h-96 p-3 bg-white rounded-lg border border-slate-200">
           { isLoading ? (
